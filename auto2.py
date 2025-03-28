@@ -14,9 +14,9 @@ class SlidingDoorSystem:
         self.STEPS_PER_REV = 2300        
         self.BELT_PITCH = 10           
         self.PULLEY_TEETH = 80         
-        self.DOOR_WIDTH = 800            
+        self.DOOR_WIDTH = 1500           # ระยะเปิดประตู
         self.SAFETY_DISTANCE = 60        
-        self.STEP_DELAY = 0.0005      
+        self.STEP_DELAY = 0.0001        # ปรับความเร็วให้เร็วที่สุด
 
         self.mm_per_rev = self.BELT_PITCH * self.PULLEY_TEETH
         self.mm_per_step = self.mm_per_rev / self.STEPS_PER_REV
@@ -46,6 +46,9 @@ class SlidingDoorSystem:
         self.ECHO_PIN = 18
         GPIO.setup(self.TRIG_PIN, GPIO.OUT)
         GPIO.setup(self.ECHO_PIN, GPIO.IN)
+
+        self.RELAY_PIN = 22
+        GPIO.setup(self.RELAY_PIN, GPIO.OUT)
 
     def setup_camera(self):
         self.camera = Picamera2()
@@ -91,7 +94,7 @@ class SlidingDoorSystem:
         return sum(readings) / len(readings)
 
     def move_door(self, target_mm):
-        if self.emergency_stop:  # Stop if emergency is triggered
+        if self.emergency_stop:  
             return
         
         steps = int(abs(target_mm - self.door_position) / self.mm_per_step)
@@ -115,7 +118,7 @@ class SlidingDoorSystem:
 
     def capture_loop(self):
         while self.is_running:
-            if self.emergency_stop:  # Stop loop if emergency stop is triggered
+            if self.emergency_stop:  
                 break
 
             frame = self.camera.capture_array()
@@ -123,15 +126,17 @@ class SlidingDoorSystem:
 
             if len(results[0].boxes) > 0:  # If person is detected
                 self.move_door(self.DOOR_WIDTH)  # Open door
-                time.sleep(4)  # Keep door open for 4 seconds
+                GPIO.output(self.RELAY_PIN, GPIO.HIGH)  # เปิด Relay
+                time.sleep(4)  
 
                 # Start ultrasonic distance checking
                 while True:
                     distance = self.measure_distance()
-                    if distance < self.SAFETY_DISTANCE:  # Object detected within 60 cm
+                    if distance >= self.SAFETY_DISTANCE:  
                         self.move_door(0)  # Close the door
+                        GPIO.output(self.RELAY_PIN, GPIO.LOW)  
                         break
-                    time.sleep(0.2)  # Delay before checking again
+                    time.sleep(0.2)  
 
             time.sleep(0.5)
 
@@ -143,6 +148,7 @@ class SlidingDoorSystem:
         self.emergency_stop = True
         GPIO.output(self.STEP_PIN, GPIO.LOW)
         self.door_position = 0
+        GPIO.output(self.RELAY_PIN, GPIO.LOW)  
         self.update_gui()
 
     def shutdown(self):
