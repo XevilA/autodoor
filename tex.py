@@ -196,6 +196,10 @@ class SlidingDoorSystem:
     
     def capture_loop(self):
         """Continuous object detection and door control"""
+        door_open_time = 0
+        DOOR_OPEN_TIMEOUT = 30  # 30 seconds timeout for door staying open
+        NO_OBJECT_CLOSE_DELAY = 5  # 5 seconds delay before closing after no object detected
+        
         while self.is_running:
             try:
                 # Capture frame
@@ -209,18 +213,34 @@ class SlidingDoorSystem:
                     verbose=False
                 )
                 
+                current_time = time.time()
+                
                 # If people detected, open door
                 if len(results[0].boxes) > 0:
-                    self.status_var.set("Person Detected - Opening Door")
-                    self.move_door(self.DOOR_WIDTH)
-                    time.sleep(4)
+                    # Reset timer when people are detected
+                    door_open_time = current_time
                     
-                    # Wait until clear of obstruction
-                    while self.measure_distance() < self.SAFETY_DISTANCE:
-                        time.sleep(1)
+                    if self.door_position < self.DOOR_WIDTH:
+                        self.status_var.set("Person Detected - Opening Door")
+                        self.move_door(self.DOOR_WIDTH)
+                
+                # Check for door closing conditions
+                elif self.door_position == self.DOOR_WIDTH:
+                    # Check if door has been open too long
+                    if current_time - door_open_time > DOOR_OPEN_TIMEOUT:
+                        self.status_var.set("Door Open Timeout - Closing")
+                        self.move_door(0)
                     
-                    self.move_door(0)
-                    self.status_var.set("Door Closed")
+                    # Check if no objects are near and enough time has passed
+                    distance = self.measure_distance()
+                    if distance > self.SAFETY_DISTANCE:
+                        # Wait a short delay to confirm no objects
+                        time.sleep(NO_OBJECT_CLOSE_DELAY)
+                        
+                        # Double-check distance after delay
+                        if self.measure_distance() > self.SAFETY_DISTANCE:
+                            self.status_var.set("No Objects - Closing Door")
+                            self.move_door(0)
                 
                 time.sleep(1)
             
