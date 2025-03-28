@@ -47,6 +47,7 @@ class SlidingDoorSystem:
         GPIO.setup(self.TRIG_PIN, GPIO.OUT)
         GPIO.setup(self.ECHO_PIN, GPIO.IN)
 
+        # Relay Pin สำหรับเปิดประตู
         self.RELAY_PIN = 22
         GPIO.setup(self.RELAY_PIN, GPIO.OUT)
 
@@ -94,7 +95,7 @@ class SlidingDoorSystem:
         return sum(readings) / len(readings)
 
     def move_door(self, target_mm):
-        if self.emergency_stop:  
+        if self.emergency_stop:  # Stop if emergency is triggered
             return
         
         steps = int(abs(target_mm - self.door_position) / self.mm_per_step)
@@ -118,25 +119,30 @@ class SlidingDoorSystem:
 
     def capture_loop(self):
         while self.is_running:
-            if self.emergency_stop:  
+            if self.emergency_stop:  # Stop loop if emergency stop is triggered
                 break
 
             frame = self.camera.capture_array()
             results = self.model.predict(frame, classes=0, conf=0.65, verbose=False)
 
+            # Check if a person is detected
             if len(results[0].boxes) > 0:  # If person is detected
+                print("Person detected")
                 self.move_door(self.DOOR_WIDTH)  # Open door
                 GPIO.output(self.RELAY_PIN, GPIO.HIGH)  # เปิด Relay
-                time.sleep(4)  
+                time.sleep(4)  # รอ 4 วินาที
 
                 # Start ultrasonic distance checking
                 while True:
                     distance = self.measure_distance()
-                    if distance >= self.SAFETY_DISTANCE:  
+                    if distance >= self.SAFETY_DISTANCE:  # ถ้าไม่พบวัตถุในระยะ 60 ซม. ให้ปิดประตู
                         self.move_door(0)  # Close the door
-                        GPIO.output(self.RELAY_PIN, GPIO.LOW)  
+                        GPIO.output(self.RELAY_PIN, GPIO.LOW)  # ปิด Relay
                         break
-                    time.sleep(0.2)  
+                    time.sleep(0.2)  # Delay before checking again
+            else:
+                print("No person detected")
+                time.sleep(1)
 
             time.sleep(0.5)
 
@@ -148,7 +154,7 @@ class SlidingDoorSystem:
         self.emergency_stop = True
         GPIO.output(self.STEP_PIN, GPIO.LOW)
         self.door_position = 0
-        GPIO.output(self.RELAY_PIN, GPIO.LOW)  
+        GPIO.output(self.RELAY_PIN, GPIO.LOW)  # ปิด Relay ทันทีเมื่อกดหยุดฉุกเฉิน
         self.update_gui()
 
     def shutdown(self):
