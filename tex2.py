@@ -10,7 +10,7 @@ class SlidingDoorSystem:
     def __init__(self, root):
         self.setup_gpio()
         self.setup_camera()
-        
+    
         self.STEPS_PER_REV = 2300        
         self.BELT_PITCH = 10             
         self.PULLEY_TEETH = 80           
@@ -62,15 +62,24 @@ class SlidingDoorSystem:
     def setup_gui(self):
         self.root.title("Smart Sliding Door System")
         self.root.geometry("600x400")
+    
+        settings_frame = ttk.LabelFrame(self.root, text="System Settings")
+        settings_frame.pack(pady=10, padx=10, fill=tk.X)
         
-        status_frame = ttk.LabelFrame(self.root, text="System Status")
-        status_frame.pack(pady=10, padx=10, fill=tk.X)
+        self.door_width_entry = ttk.Entry(settings_frame)
+        self.door_width_entry.insert(0, str(self.DOOR_WIDTH))
+        self.door_width_entry.pack(side=tk.LEFT, padx=5)
+        ttk.Label(settings_frame, text="Door Width (mm)").pack(side=tk.LEFT, padx=5)
         
-        self.door_label = ttk.Label(status_frame, text="Door Position: 0.0 mm")
-        self.door_label.pack(side=tk.LEFT, padx=5)
+        self.motor_speed_entry = ttk.Entry(settings_frame)
+        self.motor_speed_entry.insert(0, str(self.STEP_DELAY))
+        self.motor_speed_entry.pack(side=tk.LEFT, padx=5)
+        ttk.Label(settings_frame, text="Motor Speed (s/step)").pack(side=tk.LEFT, padx=5)
         
-        self.safety_label = ttk.Label(status_frame, text="Safety: OK")
-        self.safety_label.pack(side=tk.LEFT, padx=5)
+        self.motor_steps_entry = ttk.Entry(settings_frame)
+        self.motor_steps_entry.insert(0, str(self.STEPS_PER_REV))
+        self.motor_steps_entry.pack(side=tk.LEFT, padx=5)
+        ttk.Label(settings_frame, text="Motor Steps per Revolution").pack(side=tk.LEFT, padx=5)
         
         control_frame = ttk.Frame(self.root)
         control_frame.pack(pady=10, fill=tk.X)
@@ -113,6 +122,17 @@ class SlidingDoorSystem:
         if self.safety_triggered:
             return
 
+        try:
+            self.DOOR_WIDTH = float(self.door_width_entry.get())
+            self.STEP_DELAY = float(self.motor_speed_entry.get())
+            self.STEPS_PER_REV = int(self.motor_steps_entry.get())
+        except ValueError:
+            return
+
+        self.mm_per_rev = self.BELT_PITCH * self.PULLEY_TEETH
+        self.mm_per_step = self.mm_per_rev / self.STEPS_PER_REV
+        self.total_steps = int(self.DOOR_WIDTH / self.mm_per_step)
+        
         steps = int(abs(target_mm - self.door_position) / self.mm_per_step)
         if steps == 0:
             return
@@ -135,13 +155,13 @@ class SlidingDoorSystem:
     def door_control_loop(self):
         while self.is_running:
             if self.detection_active:
-                time.sleep(4)  # Wait for 4 seconds after door opening
+                time.sleep(4)  
                 
                 current_distance = self.measure_distance()  
                 
                 if current_distance < self.SAFETY_DISTANCE:
                     self.safety_label.config(text="Safety: OBSTACLE DETECTED!")
-                    self.move_door(0)  # Close door if obstacle detected
+                    self.move_door(0) 
                 else:
                     self.safety_label.config(text="Safety: OK")
             
@@ -158,11 +178,10 @@ class SlidingDoorSystem:
                 
                 if len(results[0].boxes) > 0:
                     self.move_door(self.DOOR_WIDTH)
-                    time.sleep(4)  # Open door for 4 seconds when human detected
-                    # After 4 seconds, check the ultrasonic sensor
+                    time.sleep(4)  
                     current_distance = self.measure_distance()
                     if current_distance > self.SAFETY_DISTANCE:
-                        self.move_door(0)  # Close door if no object detected
+                        self.move_door(0)  
                 
             time.sleep(1)
 
