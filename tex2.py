@@ -15,9 +15,9 @@ class SlidingDoorSystem:
         self.STEPS_PER_REV = 2300        
         self.BELT_PITCH = 10             
         self.PULLEY_TEETH = 80           
-        self.DOOR_WIDTH = 800            
+        self.DOOR_WIDTH = 1600           # ปรับระยะประตูเป็น 1600mm
         self.SAFETY_DISTANCE = 60        
-        self.STEP_DELAY = 0.001          
+        self.STEP_DELAY = 0.0001         # ปรับความเร็วให้เร็วที่สุด
         
         self.mm_per_rev = self.BELT_PITCH * self.PULLEY_TEETH
         self.mm_per_step = self.mm_per_rev / self.STEPS_PER_REV
