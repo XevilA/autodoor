@@ -23,7 +23,7 @@ class SlidingDoorSystem:
             return
         
         # Configuration constants (adjustable)
-        self.STEPS_PER_REV = 2300        
+        self.STEPS_PER_REV = 2500        
         self.BELT_PITCH = 10             
         self.PULLEY_TEETH = 80           
         self.DOOR_WIDTH = 800  # Updated to 80cm (800mm)
