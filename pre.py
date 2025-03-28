@@ -15,7 +15,7 @@ class SlidingDoorSystem:
         self.BELT_PITCH = 10
         self.PULLEY_TEETH = 80
         self.DOOR_WIDTH = 800
-        self.SAFETY_DISTANCE = 50
+        self.SAFETY_DISTANCE = 60 
         self.STEP_DELAY = 0.001
         
         self.mm_per_rev = self.BELT_PITCH * self.PULLEY_TEETH
@@ -73,10 +73,7 @@ class SlidingDoorSystem:
         control_frame = ttk.Frame(self.root)
         control_frame.pack(pady=10, fill=tk.X)
         
-        self.progress = ttk.Progressbar(control_frame, 
-                                        orient=tk.HORIZONTAL,
-                                        length=400,
-                                        maximum=self.DOOR_WIDTH)
+        self.progress = ttk.Progressbar(control_frame, orient=tk.HORIZONTAL, length=400, maximum=self.DOOR_WIDTH)
         self.progress.pack(pady=5)
         
         btn_frame = ttk.Frame(control_frame)
@@ -84,36 +81,29 @@ class SlidingDoorSystem:
         
         ttk.Button(btn_frame, text="Emergency Stop", command=self.emergency_stop).pack(side=tk.LEFT, padx=5)
         ttk.Button(btn_frame, text="Toggle Detection", command=self.toggle_detection).pack(side=tk.LEFT, padx=5)
-        ttk.Button(btn_frame, text="Open", command=lambda: self.move_door(self.DOOR_WIDTH)).pack(side=tk.LEFT, padx=5)
-        ttk.Button(btn_frame, text="Close", command=lambda: self.move_door(0)).pack(side=tk.LEFT, padx=5)
-        ttk.Button(btn_frame, text="Toggle Manual Mode", command=self.toggle_manual_mode).pack(side=tk.LEFT, padx=5)
+        ttk.Button(btn_frame, text="Manual Open", command=lambda: self.manual_move(self.DOOR_WIDTH)).pack(side=tk.LEFT, padx=5)
+        ttk.Button(btn_frame, text="Manual Close", command=lambda: self.manual_move(0)).pack(side=tk.LEFT, padx=5)
 
     def measure_distance(self):
         GPIO.output(self.TRIG_PIN, True)
         time.sleep(0.00001)
         GPIO.output(self.TRIG_PIN, False)
-        
         timeout = time.time() + 0.04
         start = end = time.time()
-        
         while GPIO.input(self.ECHO_PIN) == 0 and time.time() < timeout:
             start = time.time()
         while GPIO.input(self.ECHO_PIN) == 1 and time.time() < timeout:
             end = time.time()
-        
         return (end - start) * 17150
 
     def move_door(self, target_mm):
         if self.safety_triggered:
             return
-        
         steps = int(abs(target_mm - self.door_position) / self.mm_per_step)
         if steps == 0:
             return
-        
         direction = GPIO.HIGH if target_mm > self.door_position else GPIO.LOW
         GPIO.output(self.DIR_PIN, direction)
-        
         for _ in range(steps):
             if self.safety_triggered:
                 break
@@ -123,21 +113,16 @@ class SlidingDoorSystem:
             time.sleep(self.STEP_DELAY)
             self.door_position += self.mm_per_step * (1 if direction == GPIO.HIGH else -1)
             self.update_gui()
-        
         if target_mm == self.DOOR_WIDTH:
-            time.sleep(5)  
-            self.move_door(0)  
+            time.sleep(4)  
+
     def door_control_loop(self):
         while self.is_running:
             if self.detection_active and not self.manual_mode:
                 current_distance = self.measure_distance()
-                self.safety_triggered = current_distance < self.SAFETY_DISTANCE
-                
-                if self.safety_triggered and self.door_position > 0:
+                if not self.safety_triggered and current_distance >= self.SAFETY_DISTANCE:
                     self.move_door(0)
-                    self.safety_label.config(text="Safety: OBSTACLE DETECTED!")
-                else:
-                    self.safety_label.config(text="Safety: OK")
+                self.safety_label.config(text="Safety: OK" if not self.safety_triggered else "Safety: OBSTACLE DETECTED!")
             time.sleep(0.1)
 
     def capture_loop(self):
@@ -145,28 +130,30 @@ class SlidingDoorSystem:
             if self.detection_active and not self.manual_mode:
                 frame = self.camera.capture_array()
                 results = self.model.predict(frame, classes=0, conf=0.65, verbose=False)
-                
                 if len(results[0].boxes) > 0 and not self.safety_triggered:
-                    self.move_door(self.DOOR_WIDTH)
+                    self.move_door(self.DOOR_WIDTH)  
             time.sleep(1)
 
-    def update_gui(self):
-        self.progress['value'] = self.door_position
-        self.door_label.config(text=f"Door Position: {self.door_position:.1f} mm")
-        self.root.update()
+    def manual_move(self, target_mm):
+        self.manual_mode = True
+        self.move_door(target_mm)
 
     def emergency_stop(self):
         self.safety_triggered = True
+        self.manual_mode = False
         self.move_door(0)
         self.detection_active = False
 
     def toggle_detection(self):
         self.detection_active = not self.detection_active
+        self.manual_mode = False
         status = "ACTIVE" if self.detection_active else "DISABLED"
         self.safety_label.config(text=f"Detection: {status}")
 
-    def toggle_manual_mode(self):
-        self.manual_mode = not self.manual_mode
+    def update_gui(self):
+        self.progress['value'] = self.door_position
+        self.door_label.config(text=f"Door Position: {self.door_position:.1f} mm")
+        self.root.update()
 
     def shutdown(self):
         self.is_running = False
