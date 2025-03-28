@@ -10,7 +10,8 @@ class SlidingDoorSystem:
     def __init__(self, root):
         self.setup_gpio()
         self.setup_camera()
-    
+        
+        # กำหนดค่าเริ่มต้น
         self.STEPS_PER_REV = 2300        
         self.BELT_PITCH = 10             
         self.PULLEY_TEETH = 80           
@@ -62,7 +63,8 @@ class SlidingDoorSystem:
     def setup_gui(self):
         self.root.title("Smart Sliding Door System")
         self.root.geometry("600x400")
-    
+        
+        # Section สำหรับตั้งค่าระบบ
         settings_frame = ttk.LabelFrame(self.root, text="System Settings")
         settings_frame.pack(pady=10, padx=10, fill=tk.X)
         
@@ -101,7 +103,11 @@ class SlidingDoorSystem:
                  command=lambda: self.move_door(self.DOOR_WIDTH)).pack(side=tk.LEFT, padx=5)
         ttk.Button(btn_frame, text="Manual Close", 
                  command=lambda: self.move_door(0)).pack(side=tk.LEFT, padx=5)
-    
+        
+        # เพิ่ม safety_label สำหรับแสดงสถานะ
+        self.safety_label = ttk.Label(self.root, text="Safety: OK", font=("Arial", 14))
+        self.safety_label.pack(pady=10)
+
     def measure_distance(self):
         GPIO.output(self.TRIG_PIN, True)
         time.sleep(0.00001)
@@ -122,6 +128,7 @@ class SlidingDoorSystem:
         if self.safety_triggered:
             return
 
+        # รับค่าตั้งค่าจาก UI
         try:
             self.DOOR_WIDTH = float(self.door_width_entry.get())
             self.STEP_DELAY = float(self.motor_speed_entry.get())
@@ -155,13 +162,13 @@ class SlidingDoorSystem:
     def door_control_loop(self):
         while self.is_running:
             if self.detection_active:
-                time.sleep(4)  
+                time.sleep(4)  # Wait for 4 seconds after door opening
                 
                 current_distance = self.measure_distance()  
                 
                 if current_distance < self.SAFETY_DISTANCE:
                     self.safety_label.config(text="Safety: OBSTACLE DETECTED!")
-                    self.move_door(0) 
+                    self.move_door(0)  # Close door if obstacle detected
                 else:
                     self.safety_label.config(text="Safety: OK")
             
@@ -178,10 +185,11 @@ class SlidingDoorSystem:
                 
                 if len(results[0].boxes) > 0:
                     self.move_door(self.DOOR_WIDTH)
-                    time.sleep(4)  
+                    time.sleep(4)  # Open door for 4 seconds when human detected
+                    # After 4 seconds, check the ultrasonic sensor
                     current_distance = self.measure_distance()
                     if current_distance > self.SAFETY_DISTANCE:
-                        self.move_door(0)  
+                        self.move_door(0)  # Close door if no object detected
                 
             time.sleep(1)
 
